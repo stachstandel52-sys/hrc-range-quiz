@@ -109,7 +109,7 @@ select{background:var(--surface);border:1px solid var(--line);border-radius:8px;
 <div class="wrap">
   <header>
     <div><div class="eyebrow">HRC sims · draw the range</div><h1>HRC Range Quiz</h1></div>
-    <div class="row" style="align-items:center"><label class="muted" for="sess">Session</label><select id="sess"></select><label class="muted" for="stg">Stage</label><select id="stg"></select><label class="muted" for="diff">Mode</label><select id="diff"><option value="easy">Easy · 3 border hands</option><option value="hard">Hard · draw the full range</option></select><label class="muted" for="mode">Show</label><select id="mode"><option value="all">All spots</option><option value="review">To review (last score under 80%)</option><option value="new">Not tried yet</option><option value="worst">Worst first</option></select></div>
+    <div class="row" style="align-items:center"><label class="muted" for="sess">Session</label><select id="sess"></select><label class="muted" for="stg">Stage</label><select id="stg"></select><label class="muted" for="diff">Mode</label><select id="diff"><option value="easy">Easy · 4 hands</option><option value="hard">Hard · draw the full range</option></select><label class="muted" for="mode">Show</label><select id="mode"><option value="all">All spots</option><option value="review">To review (last score under 80%)</option><option value="new">Not tried yet</option><option value="worst">Worst first</option></select></div>
   </header>
 
   <article class="card hidden" id="empty"></article>
@@ -238,21 +238,30 @@ function renderGrid(){
 }
 const SU=["♠","♥","♦","♣"],SC=["#1b1f1d","#d0332b","#2f6fc4","#2c8a45"];
 function handCards(h){const a=h[0],b=h[1],suited=h[2]==="s";const s2=suited?0:1;const c=(r,i)=>`<div class="pc" style="color:${SC[i]}"><b>${r==="T"?"10":r}</b><i>${SU[i]}</i></div>`;return c(a,0)+c(b,s2)+`<span class="hn">${h}</span>`;}
-function borderHands(s){const mixed=[],edge=[];
-  for(let i=0;i<169;i++){const h=HANDS[i];if(reachOf(s,h)<=0)continue;const [bk,bv]=best(s,h);
-    if(bv<0.85){mixed.push(h);continue;}
-    const r=Math.floor(i/13),c=i%13;const nb=[[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([a,b])=>a>=0&&a<13&&b>=0&&b<13).map(([a,b])=>HANDS[a*13+b]).filter(x=>reachOf(s,x)>0);
-    if(nb.some(x=>best(s,x)[0]!==bk))edge.push(h);}
+function borderHands(s){const mixed=[],edge=[],pure=[];
+  const live=i=>reachOf(s,HANDS[i])>0;
+  for(let i=0;i<169;i++){if(!live(i))continue;const h=HANDS[i];const [bk,bv]=best(s,h);
+    if(bv<0.85){mixed.push(i);continue;}
+    const r=Math.floor(i/13),c=i%13;const nb=[[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([a,b])=>a>=0&&a<13&&b>=0&&b<13).map(([a,b])=>a*13+b).filter(live);
+    if(nb.some(x=>best(s,HANDS[x])[0]!==bk))edge.push(i);else pure.push(i);}
+  const border=[...mixed,...edge];
+  const dist=i=>{const r=Math.floor(i/13),c=i%13;let d=99;for(const j of border){const x=Math.abs(Math.floor(j/13)-r)+Math.abs(j%13-c);if(x<d)d=x;}return d;};
   const sh=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(x=>x[1]);
-  const pool=[...sh(mixed),...sh(edge),...sh(HANDS.filter(h=>reachOf(s,h)>0))];const out=[];
-  for(const h of pool){if(!out.includes(h))out.push(h);if(out.length===3)break;}return out;}
+  // 1 or 2 clearer hands: pure, 2-3 steps from the edge of the range (not trivial junk)
+  const near=sh(pure.filter(i=>{const d=dist(i);return d>=2&&d<=3;}));const far=sh(pure.filter(i=>dist(i)>3));
+  const nClear=Math.random()<0.5?1:2;
+  const clear=[...near,...far].slice(0,nClear);
+  const out=[];for(const i of [...sh(mixed).slice(0,2),...sh(edge),...sh(mixed)]){if(out.length>=4-clear.length)break;if(!out.includes(i))out.push(i);}
+  for(const i of clear)if(!out.includes(i))out.push(i);
+  for(const i of sh([...border,...pure])){if(out.length>=4)break;if(!out.includes(i))out.push(i);}
+  return sh(out).map(i=>HANDS[i]);}
 function easyScore(s){let c=0;for(const h of S.easyHands)c+=CREDIT[judge(s,h,S.easyPick[h]||"fold")];return Math.round(100*c/S.easyHands.length);}
 function renderEasy(){const s=cur(),box=$("#easy");
   const VJ={good:"Accurate",warn:"Inaccurate (HRC mixes)",bad:"Mistake"};
   box.innerHTML=S.easyHands.map(h=>{const pick=S.easyPick[h];let res="";
     if(S.checked){const j=judge(s,h,pick||"fold");const f=Object.entries(s.strategy[h]||{fold:1}).sort((a,b)=>b[1]-a[1]).map(([a,x])=>`${esc(label(s,a))} ${Math.round(x*100)}%`).join(" · ");res=`<div class="ev ${j}"><b>${VJ[j]}</b> · you: ${esc(label(s,pick||"fold"))}<br>HRC: ${f}</div>`;}
     return `<div class="ehand"><div class="ecards">${handCards(h)}</div><div class="eopts">${s.options.map(o=>`<button class="brush" data-h="${h}" data-k="${o.key}" aria-pressed="${pick===o.key}"${S.checked?" disabled":""}><i style="background:${colorOf(o.key)}"></i>${esc(o.label)}</button>`).join("")}</div><div class="eyebrow">Mixes</div><div class="eopts">${mixKeys(s).map(k=>`<button class="brush mix" data-h="${h}" data-k="${k}" aria-pressed="${pick===k}"${S.checked?" disabled":""}><i style="background:${colorOf(k)}"></i>${esc(label(s,k))}</button>`).join("")}</div>${res}</div>`;}).join("")
-   +(S.checked?`<div class="ehand"><div class="score" style="grid-template-columns:1fr"><div class="${easyScore(s)>=85?"g":easyScore(s)>=65?"w":"x"}"><b>${easyScore(s)}%</b><span>score on these 3 hands</span></div></div><p class="note">The grid below is HRC's full range at this spot.${s.heroHand?` At the table you held <b>${esc(s.heroHand)}</b> and chose <b>${esc(s.heroAction)}</b>.`:""}</p><div class="row"><button class="btn" id="eagain">3 other hands</button></div>${runDone()?ratingHtml(true):""}</div>`
+   +(S.checked?`<div class="ehand"><div class="score" style="grid-template-columns:1fr"><div class="${easyScore(s)>=85?"g":easyScore(s)>=65?"w":"x"}"><b>${easyScore(s)}%</b><span>score on these 4 hands</span></div></div><p class="note">The grid below is HRC's full range at this spot.${s.heroHand?` At the table you held <b>${esc(s.heroHand)}</b> and chose <b>${esc(s.heroAction)}</b>.`:""}</p><div class="row"><button class="btn" id="eagain">4 other hands</button></div>${runDone()?ratingHtml(true):""}</div>`
      :`<div class="ehand" style="justify-content:center"><p class="note">Pick an action for each hand, then check. Use a mix if you would split the hand between two actions. A single action is accurate when HRC plays it 50%+ (or close to its main play); a mix is accurate when HRC plays each of its actions at least 15% of the time.</p><button class="btn primary" id="esubmit"${S.easyHands.every(h=>S.easyPick[h])?"":" disabled"}>Check my answers</button></div>`);
   box.querySelectorAll(".brush[data-h]").forEach(b=>b.onclick=()=>{S.easyPick[b.dataset.h]=b.dataset.k;renderEasy();});
   const sb=$("#esubmit");if(sb)sb.onclick=()=>{const s=cur();const sc=easyScore(s);const k=pid(s);S.prog[k]=S.prog[k]||{attempts:[]};S.prog[k].attempts.push({rel:sc,all:sc,at:new Date().toISOString(),hands:S.easyHands.map(h=>[h,S.easyPick[h]])});save();S.checked=true;render();};
@@ -336,7 +345,7 @@ function render(){
   const p=S.prog[pid(s)],tries=p&&p.attempts?p.attempts.length:0,last=tries?p.attempts[tries-1].rel:null;
   const nsteps=DATA.spots.filter(x=>(x.group||x.file)===(s.group||s.file)&&x.session===s.session).length;
   $("#meta").innerHTML=(nsteps>1?`<span class="step">Decision ${s.step||1} of ${nsteps} in this hand</span>`:"")+esc(`${s.stage} · ${s.ttype} · ${s.left} left${s.entries?" of "+s.entries:""} · ${s.paid} paid · ${s.title} · sim ${s.file}${tries?` · last score ${last}% (${tries} ${tries===1?"try":"tries"})`:""}`);
-  $("#q").textContent=S.diff==="easy"?s.question.replace(/Draw (your|the)[^.?]*range[^.?]*[.?]?/i,"").trim()+" What do you do with each of these 3 hands?":s.question;
+  $("#q").textContent=S.diff==="easy"?s.question.replace(/Draw (your|the)[^.?]*range[^.?]*[.?]?/i,"").trim()+" What do you do with each of these 4 hands?":s.question;
   if(!s.options.some(o=>o.key===S.brush)&&!mixKeys(s).includes(S.brush))S.brush=s.options[1].key;
   $("#views").classList.toggle("hidden",!S.checked);$("#legend").classList.toggle("hidden",!S.checked||S.view!=="diff");
   document.querySelectorAll("#views .tab").forEach(t=>t.setAttribute("aria-pressed",t.dataset.v===S.view));
