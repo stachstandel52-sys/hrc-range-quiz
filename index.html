@@ -368,7 +368,7 @@ $("#imp").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=
 $("#built").textContent=`This file: ${DATA.spots.length} spots, built ${DATA.built}.`;
 if(false){$("#exp").classList.add("hidden");document.querySelector('label[for="imp"]').classList.add("hidden");document.querySelector("section .note").textContent="Saved in this browser. The copy of this quiz on your D: drive can also export and import progress.";}
 renderSessions();renderStages();open_(0);
-if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(()=>{});
+if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).catch(()=>{});
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 </script>
 </body></html>
