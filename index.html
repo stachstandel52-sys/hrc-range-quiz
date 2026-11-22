@@ -289,7 +289,10 @@ function borderHands(s){
   const gridEdge=h=>{const i=HANDS.indexOf(h),r=Math.floor(i/13),c=i%13;return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([a,b])=>a>=0&&a<13&&b>=0&&b<13).map(([a,b])=>HANDS[a*13+b]).some(x=>T[x]!==undefined&&best(s,x)[0]!==best(s,h)[0]);};
   const mixed=L.filter(h=>best(s,h)[1]<0.85), pure=L.filter(h=>best(s,h)[1]>=0.85);
   const D=Object.fromEntries(pure.map(h=>[h,dd(h)]));
-  const edge=pure.filter(h=>D[h]<=1||(gridEdge(h)&&D[h]<=4));
+  const gd0=h=>{const i=HANDS.indexOf(h),r=Math.floor(i/13),c=i%13;let d=99;for(const x of L){if(T[x]===T[h])continue;const j=HANDS.indexOf(x);const pr=(x)=>x.length===2;if(pr(x)!==pr(h))continue;const v=Math.abs(Math.floor(j/13)-r)+Math.abs(j%13-c);if(v<d)d=v;}return d;};
+  const G0=Object.fromEntries(pure.map(h=>[h,gd0(h)]));
+  // border = mixed hands, plus pure hands one notch from a hand played differently (close in strength AND touching it on the grid)
+  const edge=pure.filter(h=>D[h]<=2&&G0[h]<=1);
   const sh=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(x=>x[1]);
   const out=[];const cnt=k=>out.filter(h=>T[h]===k).length;
   const pick=(pool,n,maxPer)=>{for(const h of pool){if(n<=0)break;if(out.includes(h)||cnt(T[h])>=maxPer)continue;out.push(h);n--;}};
@@ -297,16 +300,16 @@ function borderHands(s){
   const bpool=[...sh(mixed),...sh(edge)];
   pick(bpool,nBorder,1); pick(bpool,nBorder-out.length,2);
   // clearer hands: one clear action, but only a few steps (in hand strength) from hands played differently
-  const gd=h=>{const i=HANDS.indexOf(h),r=Math.floor(i/13),c=i%13;let d=99;for(const x of L){if(T[x]===T[h])continue;const j=HANDS.indexOf(x);const v=Math.max(Math.abs(Math.floor(j/13)-r),Math.abs(j%13-c));if(v<d)d=v;}return d;};
+  const gd=h=>{const i=HANDS.indexOf(h),r=Math.floor(i/13),c=i%13;let d=99;for(const x of L){if(T[x]===T[h])continue;const j=HANDS.indexOf(x);const pr=(x)=>x.length===2;if(pr(x)!==pr(h))continue;const v=Math.abs(Math.floor(j/13)-r)+Math.abs(j%13-c);if(v<d)d=v;}return d;};
   const G=Object.fromEntries(pure.map(h=>[h,gd(h)]));
   const tier=(hi,g)=>sh(pure.filter(h=>D[h]>=2&&D[h]<=hi&&G[h]<=g&&!edge.includes(h)));
-  const cpool=[...tier(6,2),...tier(10,2),...tier(10,3),...tier(15,3)].filter(h=>RANK[h]>=4||D[h]<=3);
+  const cpool=[...tier(5,1),...tier(8,1),...tier(5,2),...tier(8,2)].filter(h=>RANK[h]>=4||D[h]<=3);
   // with 2 clearer hands: one passive (fold) and one aggressive (raise / all-in, else call)
   const isAgg=h=>T[h]!=="fold"&&T[h]!=="call"&&!T[h].includes("+"), isCall=h=>T[h]==="call";
   if(nClear===2){
     const before=out.length;
     pick(cpool.filter(h=>T[h]==="fold"),1,4);
-    const tight=cpool.filter(h=>D[h]<=8&&G[h]<=2&&(RANK[h]>=4||D[h]<=3));
+    const tight=cpool.filter(h=>D[h]<=8&&G[h]<=1&&(RANK[h]>=4||D[h]<=3));
     pick([...tight.filter(isAgg),...tight.filter(isCall)],1,4);
     if(out.length-before<2) pick(cpool,4-out.length,1);
   }
