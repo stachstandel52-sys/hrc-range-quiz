@@ -300,7 +300,16 @@ function borderHands(s){
   const gd=h=>{const i=HANDS.indexOf(h),r=Math.floor(i/13),c=i%13;let d=99;for(const x of L){if(T[x]===T[h])continue;const j=HANDS.indexOf(x);const v=Math.max(Math.abs(Math.floor(j/13)-r),Math.abs(j%13-c));if(v<d)d=v;}return d;};
   const G=Object.fromEntries(pure.map(h=>[h,gd(h)]));
   const tier=(hi,g)=>sh(pure.filter(h=>D[h]>=2&&D[h]<=hi&&G[h]<=g&&!edge.includes(h)));
-  const cpool=[...tier(6,2),...tier(10,2),...tier(10,3),...tier(15,3)];
+  const cpool=[...tier(6,2),...tier(10,2),...tier(10,3),...tier(15,3)].filter(h=>RANK[h]>=4||D[h]<=3);
+  // with 2 clearer hands: one passive (fold) and one aggressive (raise / all-in, else call)
+  const isAgg=h=>T[h]!=="fold"&&T[h]!=="call"&&!T[h].includes("+"), isCall=h=>T[h]==="call";
+  if(nClear===2){
+    const before=out.length;
+    pick(cpool.filter(h=>T[h]==="fold"),1,4);
+    const tight=cpool.filter(h=>D[h]<=8&&G[h]<=2&&(RANK[h]>=4||D[h]<=3));
+    pick([...tight.filter(isAgg),...tight.filter(isCall)],1,4);
+    if(out.length-before<2) pick(cpool,4-out.length,1);
+  }
   pick(cpool,4-out.length,0); pick(cpool,4-out.length,1); pick(cpool,4-out.length,2);
   pick(sh([...mixed,...edge]),4-out.length,2); pick(sh(pure.sort((a,b)=>D[a]-D[b]).slice(0,20)),4-out.length,4);
   return sh(out);}
