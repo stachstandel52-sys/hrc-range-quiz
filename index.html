@@ -278,29 +278,32 @@ function renderGrid(){
 }
 const SU=["♠","♥","♦","♣"],SC=["#1b1f1d","#d0332b","#2f6fc4","#2c8a45"];
 function handCards(h){const a=h[0],b=h[1],suited=h[2]==="s";const s2=suited?0:1;const c=(r,i)=>`<div class="pc" style="color:${SC[i]}"><b>${r==="T"?"10":r}</b><i>${SU[i]}</i></div>`;return c(a,0)+c(b,s2)+`<span class="hn">${h}</span>`;}
+const RANK=Object.fromEntries(["AA", "KK", "QQ", "JJ", "TT", "99", "88", "AKs", "AQo", "AJs", "77", "AQs", "ATo", "66", "ATs", "KQs", "A9s", "KQo", "AKo", "KJs", "AJo", "A8s", "KTs", "QJs", "KJo", "A9o", "A5s", "A6s", "A7s", "A4s", "A8o", "A7o", "KTo", "K7s", "QTs", "55", "K9s", "A3s", "QTo", "K6s", "K8s", "JTs", "Q9s", "A6o", "Q8s", "K9o", "K8o", "A5o", "JTo", "Q6s", "J9s", "A2s", "Q9o", "A4o", "44", "QJo", "K3s", "A2o", "A3o", "K7o", "Q7s", "J8s", "K5s", "T9s", "K6o", "33", "K5o", "K4s", "Q8o", "J9o", "K2s", "Q4s", "K3o", "Q5s", "Q7o", "J7s", "J6s", "T8s", "T7s", "Q3s", "Q6o", "J8o", "T9o", "J5s", "T8o", "J7o", "22", "98s", "Q2s", "Q3o", "98o", "K4o", "T6s", "Q4o", "Q2o", "Q5o", "J3s", "K2o", "87s", "96s", "J6o", "T7o", "J2s", "J4s", "97s", "T5s", "T4s", "T6o", "86s", "76s", "J5o", "97o", "T2s", "84s", "J3o", "T3s", "95s", "87o", "J4o", "94s", "J2o", "96o", "75s", "86o", "T5o", "85s", "65s", "76o", "95o", "T3o", "74s", "93s", "64s", "T4o", "85o", "54s", "T2o", "92s", "82s", "94o", "83s", "75o", "93o", "73s", "65o", "63s", "53s", "84o", "43s", "74o", "62s", "72s", "64o", "83o", "92o", "53o", "73o", "32s", "82o", "52s", "54o", "42s", "63o", "72o", "43o", "52o", "62o", "32o", "42o"].map((h,i)=>[h,i]));
 function handType(s,h){const f=s.strategy[h]||{fold:1};const [bk,bv]=best(s,h);if(bv>=0.85)return bk;return Object.entries(f).filter(([k,v])=>v>=0.15).map(([k])=>k).sort().join("+");}
-function borderHands(s){const mixed=[],edge=[],pure=[];
-  const live=i=>reachOf(s,HANDS[i])>0;
-  for(let i=0;i<169;i++){if(!live(i))continue;const h=HANDS[i];const [bk,bv]=best(s,h);
-    if(bv<0.85){mixed.push(i);continue;}
-    const r=Math.floor(i/13),c=i%13;const nb=[[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([a,b])=>a>=0&&a<13&&b>=0&&b<13).map(([a,b])=>a*13+b).filter(live);
-    if(nb.some(x=>best(s,HANDS[x])[0]!==bk))edge.push(i);else pure.push(i);}
-  const border=[...mixed,...edge];
-  const dist=i=>{const r=Math.floor(i/13),c=i%13;let d=99;for(const j of border){const x=Math.abs(Math.floor(j/13)-r)+Math.abs(j%13-c);if(x<d)d=x;}return d;};
+function borderHands(s){
+  const live=HANDS.filter(h=>reachOf(s,h)>0);
+  const L=live.slice().sort((a,b)=>RANK[a]-RANK[b]);const T={};for(const h of L)T[h]=handType(s,h);
+  const pos=Object.fromEntries(L.map((h,k)=>[h,k]));
+  // distance (in hand-strength order) to the nearest hand that is played differently
+  const dd=h=>{const k=pos[h];let d=999;for(let j=0;j<L.length;j++){if(T[L[j]]!==T[h]){const x=Math.abs(j-k);if(x<d)d=x;}}return d;};
+  const gridEdge=h=>{const i=HANDS.indexOf(h),r=Math.floor(i/13),c=i%13;return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([a,b])=>a>=0&&a<13&&b>=0&&b<13).map(([a,b])=>HANDS[a*13+b]).some(x=>T[x]!==undefined&&best(s,x)[0]!==best(s,h)[0]);};
+  const mixed=L.filter(h=>best(s,h)[1]<0.85), pure=L.filter(h=>best(s,h)[1]>=0.85);
+  const D=Object.fromEntries(pure.map(h=>[h,dd(h)]));
+  const edge=pure.filter(h=>D[h]<=1||(gridEdge(h)&&D[h]<=4));
   const sh=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(x=>x[1]);
-  const T=i=>handType(s,HANDS[i]);
-  const out=[];const cnt=k=>out.filter(i=>T(i)===k).length;
-  // pick so that the answers differ: first one hand per answer type, then at most 2 of a type
-  const pick=(pool,n,maxPer)=>{for(const i of pool){if(n<=0)break;if(out.includes(i)||cnt(T(i))>=maxPer)continue;out.push(i);n--;}};
+  const out=[];const cnt=k=>out.filter(h=>T[h]===k).length;
+  const pick=(pool,n,maxPer)=>{for(const h of pool){if(n<=0)break;if(out.includes(h)||cnt(T[h])>=maxPer)continue;out.push(h);n--;}};
   const nClear=Math.random()<0.5?1:2, nBorder=4-nClear;
   const bpool=[...sh(mixed),...sh(edge)];
-  pick(sh(bpool),nBorder,1); pick(bpool,nBorder-out.length,2);
-  // clearer hands (2-3 steps from the edge), preferring an answer not used yet
-  const near=sh(pure.filter(i=>{const d=dist(i);return d>=2&&d<=3;})),far=sh(pure.filter(i=>dist(i)>3));
-  const cpool=[...near,...far];
+  pick(bpool,nBorder,1); pick(bpool,nBorder-out.length,2);
+  // clearer hands: one clear action, but only a few steps (in hand strength) from hands played differently
+  const gd=h=>{const i=HANDS.indexOf(h),r=Math.floor(i/13),c=i%13;let d=99;for(const x of L){if(T[x]===T[h])continue;const j=HANDS.indexOf(x);const v=Math.max(Math.abs(Math.floor(j/13)-r),Math.abs(j%13-c));if(v<d)d=v;}return d;};
+  const G=Object.fromEntries(pure.map(h=>[h,gd(h)]));
+  const tier=(hi,g)=>sh(pure.filter(h=>D[h]>=2&&D[h]<=hi&&G[h]<=g&&!edge.includes(h)));
+  const cpool=[...tier(6,2),...tier(10,2),...tier(10,3),...tier(15,3)];
   pick(cpool,4-out.length,0); pick(cpool,4-out.length,1); pick(cpool,4-out.length,2);
-  pick(sh([...border,...pure]),4-out.length,2); pick(sh([...border,...pure]),4-out.length,4);
-  return sh(out).map(i=>HANDS[i]);}
+  pick(sh([...mixed,...edge]),4-out.length,2); pick(sh(pure.sort((a,b)=>D[a]-D[b]).slice(0,20)),4-out.length,4);
+  return sh(out);}
 function easyScore(s){let c=0;for(const h of S.easyHands)c+=CREDIT[judge(s,h,S.easyPick[h]||"fold")];return Math.round(100*c/S.easyHands.length);}
 function renderEasy(){const s=cur(),box=$("#easy");
   const VJ={good:"Accurate",warn:"Inaccurate (HRC mixes)",bad:"Mistake"};
