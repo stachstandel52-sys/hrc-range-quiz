@@ -244,7 +244,7 @@ function label(s,k){return parts(k).map(x=>(s.options.find(o=>o.key===x)||{label
 function judge(s,h,k){const p=parts(k);
   if(p.length===1){const f=freq(s,h,k),[bk,bv]=best(s,h);if(f>=bv-0.1||f>=0.5)return "good";if(f>=0.2)return "warn";return "bad";}
   const fs=p.map(x=>freq(s,h,x)),mn=Math.min(...fs),sm=fs.reduce((a,b)=>a+b,0);
-  if(mn>=0.15)return "good";if(mn>=0.05||sm>=0.7)return "warn";return "bad";}
+  if(mn>=0.15)return "good";if(mn>=0.05||sm>=0.7||Math.max(...fs)>=0.2)return "warn";return "bad";}
 const CREDIT={good:1,warn:0.5,bad:0};
 function grade(s,draw){
   let wAll=0,sAll=0,wRel=0,sRel=0,n={good:0,warn:0,bad:0};const tight=[],loose=[],wrong=[];
@@ -361,7 +361,7 @@ function renderResults(){
     <p class="note">${cmp}</p>
     <p class="note">${s.heroHand?`At the table you held <b>${esc(s.heroHand)}</b> and chose <b>${esc(s.heroAction)}</b>. HRC with ${esc(s.heroHand)}: ${hd}.`:`Your cards aren't visible in the screenshot; at the table you chose <b>${esc(s.heroAction)}</b>.`}</p>
     <div class="fb"><section><h3>Too tight: you fold, HRC plays</h3>${li(r.tight)}</section><section><h3>Too loose: you play, HRC folds</h3>${li(r.loose)}</section>${s.options.length>2?`<section><h3>Right to play, wrong action</h3>${li(r.wrong)}</section>`:""}</div>
-    <p class="note">"Hands that matter" leaves out the hands HRC folds 95%+ that you also folded, so easy folds don't pad the score. Scoring: accurate = full credit, inaccurate = half, mistake = none. A mix is accurate when HRC plays every action in it at least 15% of the time.${s.reach?" Greyed hands aren't in your range at this point, and hands you only reach part of the time count less.":""} ${esc(s.note)}</p>${runDone()?ratingHtml(true):""}
+    <p class="note">"Hands that matter" leaves out the hands HRC folds 95%+ that you also folded, so easy folds don't pad the score. Scoring: accurate = full credit, inaccurate = half, mistake = none. A mix is accurate when HRC plays every action in it at least 15% of the time; a mix where HRC plays at least one of its actions 20%+ gets half credit.${s.reach?" Greyed hands aren't in your range at this point, and hands you only reach part of the time count less.":""} ${esc(s.note)}</p>${runDone()?ratingHtml(true):""}
     <div class="row"><button class="btn" id="copy">Copy result to send to Claude</button><span class="msg" id="cmsg"></span></div>`;
   $("#copy").onclick=async()=>{const t=`HRC Range Quiz — ${s.file} (${s.title})\nAccuracy (hands that matter): ${r.rel}% · all combos: ${r.all}%\n`+s.options.map(o=>`${o.label}: me ${pct(r.mine,o.key)} / HRC ${pct(r.hrc,o.key)}`).join("\n")+`\nToo tight: ${r.tight.map(x=>x.h).join(" ")||"-"}\nToo loose: ${r.loose.map(x=>x.h).join(" ")||"-"}\nWrong action: ${r.wrong.map(x=>x.h).join(" ")||"-"}`;
     try{await navigator.clipboard.writeText(t);$("#cmsg").textContent="Copied.";}catch(e){$("#cmsg").textContent="Couldn't copy here.";}};
